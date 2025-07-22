@@ -20,29 +20,28 @@ import uuid
 
 def create_kernel(python_env, kernel_id=None):
     """Create a new Jupyter kernel"""
+    import os
+    
     if kernel_id is None:
         kernel_id = str(uuid.uuid4())[:8]  # Short ID
     
     if kernel_id in kernels:
         raise ValueError(f"Kernel {kernel_id} already exists")
     
-    print(f"Starting Jupyter kernel {kernel_id} with Python: {python_env or 'default'}")
+    print(f"Starting Jupyter kernel {kernel_id} with Python: {python_env}")
     
-    # Validate python_env if provided
-    if python_env:
-        import os
-        if not os.path.exists(python_env):
-            raise ValueError(f"Python executable not found: {python_env}")
-        if not os.access(python_env, os.X_OK):
-            raise ValueError(f"Python executable not executable: {python_env}")
+    # Validate python_env
+    if not os.path.exists(python_env):
+        raise ValueError(f"Python executable not found: {python_env}")
+    if not os.access(python_env, os.X_OK):
+        raise ValueError(f"Python executable not executable: {python_env}")
+    
+    # Build kernel command for jupyter-client 8+
+    kernel_cmd = [python_env, "-m", "ipykernel", "-f", "{connection_file}"]
     
     km = KernelManager()
-    
-    # Set Python executable directly via environment
-    if python_env:
-        km.kernel_cmd = [python_env, "-m", "ipykernel_launcher", "-f", "{connection_file}"]
-    
-    km.start_kernel()
+    # Pass kernel_cmd at start_kernel time (jupyter-client 8+ way)
+    km.start_kernel(kernel_cmd=kernel_cmd)
     kc = km.client()
     kc.wait_for_ready()
     
@@ -50,7 +49,7 @@ def create_kernel(python_env, kernel_id=None):
         'manager': km,
         'client': kc, 
         'created_at': datetime.now(),
-        'python_env': python_env or "default"
+        'python_env': python_env
     }
     
     print(f"Jupyter kernel {kernel_id} ready!")
