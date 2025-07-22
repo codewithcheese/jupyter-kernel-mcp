@@ -1,6 +1,6 @@
 # Jupyter Kernel MCP
 
-[![PyPI version](https://badge.fury.io/py/jupyter-kernel-mcp.svg)](https://badge.fury.io/py/jupyter-kernel-mcp)
+[![PyPI version](https://badge.fury.io/py/jupyter-kernel-mcp.svg)](https://pypi.org/project/jupyter-kernel-mcp/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -59,19 +59,19 @@ Get started with Jupyter Kernel MCP by installing the package and adding it to y
 
 ### Install Jupyter Kernel MCP
 
-#### From PyPI (Stable Release)
+#### From PyPI (Recommended)
 
-1. **Install using pip:**
+**Install using pip:**
 
-    ```bash
-    pip install jupyter-kernel-mcp
-    ```
+```bash
+pip install jupyter-kernel-mcp
+```
 
-    Or using uv:
+Or using uv:
 
-    ```bash
-    uv add jupyter-kernel-mcp
-    ```
+```bash
+uv add jupyter-kernel-mcp
+```
 
 #### From GitHub (Development Version)
 
