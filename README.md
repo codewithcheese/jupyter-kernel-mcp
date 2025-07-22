@@ -20,7 +20,7 @@ A Model Context Protocol (MCP) server that provides stateful Jupyter kernel deve
 
 ## Project description
 
-With _Jupyter Kernel MCP_ you can execute Python code in persistent, isolated environments that maintain state between executionsperfect for AI agents performing complex data analysis workflows.
+With _Jupyter Kernel MCP_ you can execute Python code in persistent, isolated environments that maintain state between executions—perfect for AI agents performing complex data analysis workflows.
 
 _Jupyter Kernel MCP_ helps you build stateful AI agent workflows that can load datasets, perform transformations, and analyze results across multiple interactions without losing variables or computed state.
 
@@ -28,12 +28,12 @@ Unlike traditional stateless code execution, _Jupyter Kernel MCP_ preserves vari
 
 ### Key Features
 
-- **= Persistent State**: Variables and imports persist between code executions
-- **=� Multi-Kernel Support**: Create and manage multiple isolated kernel environments  
-- **> AI-Agent Ready**: Seamless integration with Claude Code and other MCP clients
-- **=� Data Science Workflows**: Perfect for iterative data analysis and exploration
-- **� Fast Communication**: Direct socket-based communication with Jupyter kernels
-- **=� Easy Management**: Simple kernel lifecycle management (start, stop, reset, list)
+- **🔄 Persistent State**: Variables and imports persist between code executions
+- **🚀 Multi-Kernel Support**: Create and manage multiple isolated kernel environments  
+- **🤖 AI-Agent Ready**: Seamless integration with Claude Code and other MCP clients
+- **📊 Data Science Workflows**: Perfect for iterative data analysis and exploration
+- **⚡ Fast Communication**: Direct socket-based communication with Jupyter kernels
+- **🛠 Easy Management**: Simple kernel lifecycle management (start, stop, reset, list)
 
 ## Who this project is for
 
@@ -208,4 +208,4 @@ Jupyter Kernel MCP is licensed under the [MIT License](LICENSE).
 
 ---
 
-*Built with d for the AI agent development community*
+*Built with ❤️ for the AI agent development community*
