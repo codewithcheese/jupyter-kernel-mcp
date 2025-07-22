@@ -59,23 +59,33 @@ Get started with Jupyter Kernel MCP by installing the package and adding it to y
 
 ### Install Jupyter Kernel MCP
 
+#### From PyPI (Stable Release)
+
 1. **Install using pip:**
 
     ```bash
     pip install jupyter-kernel-mcp
     ```
 
-    Or using uv (recommended):
+    Or using uv:
 
     ```bash
     uv add jupyter-kernel-mcp
     ```
 
-2. **Verify installation:**
+#### From GitHub (Development Version)
 
-    ```bash
-    jupyter-kernel-mcp --help
-    ```
+To install the latest development version directly from GitHub:
+
+```bash
+uv tool install git+https://github.com/codewithcheese/jupyter-kernel-mcp.git
+```
+
+#### Verify Installation
+
+```bash
+jupyter-kernel-mcp --help
+```
 
 ### Configure with Claude Code
 
