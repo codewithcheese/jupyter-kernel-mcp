@@ -18,7 +18,7 @@ kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 
 
 import uuid
 
-def create_kernel(kernel_id=None):
+def create_kernel(kernel_id=None, python_env=None):
     """Create a new Jupyter kernel"""
     if kernel_id is None:
         kernel_id = str(uuid.uuid4())[:8]  # Short ID
@@ -26,8 +26,22 @@ def create_kernel(kernel_id=None):
     if kernel_id in kernels:
         raise ValueError(f"Kernel {kernel_id} already exists")
     
-    print(f"Starting Jupyter kernel {kernel_id}...")
+    print(f"Starting Jupyter kernel {kernel_id} with Python: {python_env or 'default'}")
+    
+    # Validate python_env if provided
+    if python_env:
+        import os
+        if not os.path.exists(python_env):
+            raise ValueError(f"Python executable not found: {python_env}")
+        if not os.access(python_env, os.X_OK):
+            raise ValueError(f"Python executable not executable: {python_env}")
+    
     km = KernelManager()
+    
+    # Set Python executable directly via environment
+    if python_env:
+        km.kernel_cmd = [python_env, "-m", "ipykernel_launcher", "-f", "{connection_file}"]
+    
     km.start_kernel()
     kc = km.client()
     kc.wait_for_ready()
@@ -35,7 +49,8 @@ def create_kernel(kernel_id=None):
     kernels[kernel_id] = {
         'manager': km,
         'client': kc, 
-        'created_at': datetime.now()
+        'created_at': datetime.now(),
+        'python_env': python_env or "default"
     }
     
     print(f"Jupyter kernel {kernel_id} ready!")
@@ -107,18 +122,22 @@ def execute_code_in_kernel(code: str, kernel_id: str, timeout: int = 30) -> Dict
 mcp = FastMCP("Jupyter Kernel Server")
 
 @mcp.tool()
-def start_kernel(kernel_id: str = None) -> dict:
+def start_kernel(kernel_id: str = None, python_env: str) -> dict:
     """
     Start a new Jupyter kernel.
     
     Args:
         kernel_id: Optional custom kernel ID. If not provided, generates a random ID.
+        python_env: Path to Python executable to use for the kernel
+                   
+                   To find the current Python executable, run:
+                   which python
     
     Returns:
         Dictionary with kernel_id and creation info
     """
     try:
-        actual_id = create_kernel(kernel_id)
+        actual_id = create_kernel(kernel_id, python_env)
         return {
             'success': True,
             'kernel_id': actual_id,
