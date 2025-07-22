@@ -18,7 +18,7 @@ kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 
 
 import uuid
 
-def create_kernel(kernel_id=None, python_env=None):
+def create_kernel(python_env, kernel_id=None):
     """Create a new Jupyter kernel"""
     if kernel_id is None:
         kernel_id = str(uuid.uuid4())[:8]  # Short ID
@@ -122,7 +122,7 @@ def execute_code_in_kernel(code: str, kernel_id: str, timeout: int = 30) -> Dict
 mcp = FastMCP("Jupyter Kernel Server")
 
 @mcp.tool()
-def start_kernel(kernel_id: str = None, python_env: str) -> dict:
+def start_kernel(python_env: str, kernel_id: str = None) -> dict:
     """
     Start a new Jupyter kernel.
     
@@ -137,7 +137,7 @@ def start_kernel(kernel_id: str = None, python_env: str) -> dict:
         Dictionary with kernel_id and creation info
     """
     try:
-        actual_id = create_kernel(kernel_id, python_env)
+        actual_id = create_kernel(python_env, kernel_id)
         return {
             'success': True,
             'kernel_id': actual_id,
@@ -267,11 +267,17 @@ def reset_kernel(kernel_id: str) -> dict:
         Dictionary indicating the reset was successful
     """
     try:
+        # Get the original python_env before stopping the kernel
+        if kernel_id not in kernels:
+            raise ValueError(f"Kernel {kernel_id} not found")
+        
+        original_python_env = kernels[kernel_id]['python_env']
+        
         # Stop the existing kernel
         shutdown_kernel(kernel_id)
         
-        # Start a new kernel with the same ID
-        create_kernel(kernel_id)
+        # Start a new kernel with the same ID and original environment
+        create_kernel(original_python_env if original_python_env != "default" else None, kernel_id)
         
         return {
             'success': True,
