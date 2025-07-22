@@ -38,3 +38,9 @@ Issues = "https://github.com/codewithcheese/jupyter-kernel-mcp/issues"
 
 [project.scripts]
 jupyter-kernel-mcp = "jupyter_kernel_mcp:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+]

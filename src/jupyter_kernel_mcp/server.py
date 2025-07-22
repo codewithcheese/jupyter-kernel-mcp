@@ -36,12 +36,17 @@ def create_kernel(python_env, kernel_id=None):
     if not os.access(python_env, os.X_OK):
         raise ValueError(f"Python executable not executable: {python_env}")
     
-    # Build kernel command for jupyter-client 8+
-    kernel_cmd = [python_env, "-m", "ipykernel", "-f", "{connection_file}"]
+    # For jupyter-client 8+, use environment variables to specify Python executable
+    import os
     
     km = KernelManager()
-    # Pass kernel_cmd at start_kernel time (jupyter-client 8+ way)
-    km.start_kernel(kernel_cmd=kernel_cmd)
+    
+    # Set environment variables for the kernel startup
+    env = os.environ.copy()
+    env['JUPYTER_PYTHON_EXECUTABLE'] = python_env
+    
+    # Start kernel with custom environment
+    km.start_kernel(env=env)
     kc = km.client()
     kc.wait_for_ready()
     
