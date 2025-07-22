@@ -1,0 +1,35 @@
+[project]
+name = "jupyter-kernel-mcp"
+version = "0.1.0"
+description = "MCP server for stateful Jupyter kernel development with multi-kernel support"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Tom M", email = "tom@codewithcheese.com"}
+]
+license = {text = "MIT"}
+keywords = ["mcp", "jupyter", "kernel", "ai", "assistant"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "jupyter-client>=7.0.0",
+    "mcp>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/codewithcheese/jupyter-kernel-mcp"
+Repository = "https://github.com/codewithcheese/jupyter-kernel-mcp.git"
+Issues = "https://github.com/codewithcheese/jupyter-kernel-mcp/issues"
+
+[project.scripts]
+jupyter-kernel-mcp = "jupyter_kernel_mcp:main"
