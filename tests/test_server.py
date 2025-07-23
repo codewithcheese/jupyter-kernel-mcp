@@ -201,6 +201,34 @@ def temp_python_env():
     # Clean up
     shutil.rmtree(temp_dir)
 
+@pytest.fixture(scope="session")
+def real_python_env():
+    """Create a real temporary Python virtual environment for integration testing"""
+    import subprocess
+    from pathlib import Path
+    
+    temp_dir = tempfile.mkdtemp()
+    venv_path = Path(temp_dir) / "test_venv"
+    
+    try:
+        # Create virtual environment
+        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
+        
+        # Get Python executable path (cross-platform)
+        if os.name == 'nt':  # Windows
+            python_exe = venv_path / "Scripts" / "python.exe"
+        else:  # Unix/Linux/macOS
+            python_exe = venv_path / "bin" / "python"
+        
+        # Install ipykernel in the venv (required for Jupyter kernels)
+        subprocess.run([str(python_exe), "-m", "pip", "install", "ipykernel"], check=True)
+        
+        yield str(python_exe)
+        
+    finally:
+        # Cleanup
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 class TestEnvironmentHandling:
     """Test Python environment handling"""
@@ -225,6 +253,26 @@ class TestEnvironmentHandling:
         
         with pytest.raises(ValueError, match="not executable"):
             create_kernel(temp_python_env, "env-test")
+    
+    def test_kernel_uses_specific_python_env(self, real_python_env):
+        """Test that kernel actually uses a specific Python environment"""
+        kernel_id = create_kernel(real_python_env, "env-verify-test")
+        
+        # Execute code to check which Python the kernel is actually using
+        check_code = """
+import sys
+sys.executable
+"""
+        
+        try:
+            result = execute_code_in_kernel(check_code, kernel_id)
+            assert result['success'] is True
+            
+            kernel_python = result['result'].strip().strip("'\"")
+            assert kernel_python == real_python_env, f"Expected {real_python_env}, got {kernel_python}"
+            
+        finally:
+            shutdown_kernel(kernel_id)
 
 
 if __name__ == "__main__":

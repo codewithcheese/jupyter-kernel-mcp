@@ -4,14 +4,15 @@ MCP Server for stateful Jupyter kernel development
 Provides tools for executing Python code with persistent state
 """
 
-import asyncio
-from typing import Any, Dict, List
-from datetime import datetime
 import json
+import sys
+import typing as t
+from datetime import datetime
+from typing import Any, Dict
 
-from mcp.server.fastmcp import FastMCP
 from jupyter_client import KernelManager
-from mcp.types import TextContent, ImageContent, EmbeddedResource
+from jupyter_client.kernelspec import KernelSpec
+from mcp.server.fastmcp import FastMCP
 
 # Dictionary to store multiple kernels
 kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 'created_at': datetime}
@@ -36,17 +37,27 @@ def create_kernel(python_env, kernel_id=None):
     if not os.access(python_env, os.X_OK):
         raise ValueError(f"Python executable not executable: {python_env}")
     
-    # For jupyter-client 8+, use environment variables to specify Python executable
-    import os
+    class CustomKernelManager(KernelManager):
+        """Custom KernelManager that preserves specified Python executable"""
+        
+        def __init__(self, custom_python_path: str, **kwargs):
+            self.custom_python_path = custom_python_path
+            super().__init__(**kwargs)
+        
+        def format_kernel_cmd(self, extra_arguments: t.Optional[t.List[str]] = None) -> t.List[str]:
+            """Override to preserve our custom Python path"""
+            # Get the normal formatted command from parent
+            cmd = super().format_kernel_cmd(extra_arguments)
+            # Replace the Python executable with our custom one
+            if cmd:
+                cmd[0] = self.custom_python_path
+            return cmd
     
-    km = KernelManager()
+    # Create custom KernelManager with our Python path
+    km = CustomKernelManager(custom_python_path=python_env)
     
-    # Set environment variables for the kernel startup
-    env = os.environ.copy()
-    env['JUPYTER_PYTHON_EXECUTABLE'] = python_env
-    
-    # Start kernel with custom environment
-    km.start_kernel(env=env)
+    # Start kernel
+    km.start_kernel()
     kc = km.client()
     kc.wait_for_ready()
     
