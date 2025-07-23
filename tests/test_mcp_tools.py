@@ -40,9 +40,9 @@ class TestMCPTools:
         
         result = start_kernel(python_path, "mcp-test")
         
-        assert result['success'] is True
-        assert result['kernel_id'] == "mcp-test"
-        assert "started successfully" in result['message']
+        assert result.success is True
+        assert result.kernel_id == "mcp-test"
+        assert "started successfully" in result.message
         
         # Clean up
         stop_kernel("mcp-test")
@@ -51,8 +51,8 @@ class TestMCPTools:
         """Test start_kernel with invalid Python path"""
         result = start_kernel("/invalid/python", "mcp-test")
         
-        assert result['success'] is False
-        assert "not found" in result['error']
+        assert result.success is False
+        assert "not found" in result.error
     
     def test_stop_kernel_tool(self):
         """Test stop_kernel MCP tool"""
@@ -61,23 +61,23 @@ class TestMCPTools:
         
         result = stop_kernel("mcp-test")
         
-        assert result['success'] is True
-        assert "stopped successfully" in result['message']
+        assert result.success is True
+        assert "stopped successfully" in result.message
     
     def test_stop_nonexistent_kernel(self):
         """Test stopping non-existent kernel"""
         result = stop_kernel("nonexistent")
         
-        assert result['success'] is False
-        assert "not found" in result['error']
+        assert result.success is False
+        assert "not found" in result.error
     
     def test_list_kernels_empty(self):
         """Test listing kernels when none exist"""
         result = list_kernels()
         
-        assert result['success'] is True
-        assert result['count'] == 0
-        assert result['kernels'] == {}
+        assert result.success is True
+        assert result.count == 0
+        assert result.kernels == {}
     
     def test_list_kernels_with_kernels(self):
         """Test listing kernels when some exist"""
@@ -87,10 +87,10 @@ class TestMCPTools:
         
         result = list_kernels()
         
-        assert result['success'] is True
-        assert result['count'] == 2
-        assert "kernel-1" in result['kernels']
-        assert "kernel-2" in result['kernels']
+        assert result.success is True
+        assert result.count == 2
+        assert "kernel-1" in result.kernels
+        assert "kernel-2" in result.kernels
         
         # Clean up
         stop_kernel("kernel-1")
@@ -103,8 +103,8 @@ class TestMCPTools:
         
         result = execute_python("print('MCP Test')", "mcp-test")
         
-        assert result['success'] is True
-        assert 'MCP Test' in ''.join(result['output'])
+        assert result.success is True
+        assert 'MCP Test' in ''.join(result.output)
         
         # Clean up
         stop_kernel("mcp-test")
@@ -125,11 +125,10 @@ class TestMCPTools:
         
         result = list_variables("mcp-test")
         
-        assert result['success'] is True
+        assert result.success is True
         # Variables should be in the result
-        vars_dict = eval(result['result'])
-        assert 'test_var' in vars_dict
-        assert 'test_list' in vars_dict
+        assert 'test_var' in result.variables
+        assert 'test_list' in result.variables
         
         # Clean up
         stop_kernel("mcp-test")
@@ -145,13 +144,13 @@ class TestMCPTools:
         # Reset kernel
         result = reset_kernel("mcp-test")
         
-        assert result['success'] is True
-        assert "reset successfully" in result['message']
+        assert result.success is True
+        assert "reset successfully" in result.message
         
         # Verify variable is gone
         exec_result = execute_python("print(persist_var)", "mcp-test")
-        assert exec_result['success'] is False
-        assert "NameError" in exec_result['error']['name']
+        assert exec_result.success is False
+        assert "NameError" in exec_result.error['name']
         
         # Clean up
         stop_kernel("mcp-test")
@@ -164,7 +163,8 @@ class TestMCPTools:
         result = get_kernel_status("mcp-test")
         
         # Should return some status info (even if basic)
-        assert 'status' in result or 'python_version' in result
+        assert result.status == "running"
+        assert result.kernel_id == "mcp-test"
         
         # Clean up
         stop_kernel("mcp-test")
@@ -193,7 +193,7 @@ class TestMCPToolsIntegration:
         
         # 1. Start kernel
         start_result = start_kernel(python_path, "workflow-test")
-        assert start_result['success'] is True
+        assert start_result.success is True
         
         # 2. Execute some code
         exec_result = execute_python("""
@@ -203,30 +203,29 @@ total = sum(data)
 print(f"Generated {len(data)} numbers, total: {total}")
 total
 """, "workflow-test")
-        assert exec_result['success'] is True
-        assert 'Generated 10 numbers' in ''.join(exec_result['output'])
+        assert exec_result.success is True
+        assert 'Generated 10 numbers' in ''.join(exec_result.output)
         
         # 3. List variables
         vars_result = list_variables("workflow-test")
-        assert vars_result['success'] is True
-        vars_dict = eval(vars_result['result'])
-        assert 'data' in vars_dict
-        assert 'total' in vars_dict
+        assert vars_result.success is True
+        assert 'data' in vars_result.variables
+        assert 'total' in vars_result.variables
         
         # 4. Continue computation using existing variables
         continue_result = execute_python("average = total / len(data); print(f'Average: {average}')", "workflow-test")
-        assert continue_result['success'] is True
-        assert 'Average:' in ''.join(continue_result['output'])
+        assert continue_result.success is True
+        assert 'Average:' in ''.join(continue_result.output)
         
         # 5. List kernels
         list_result = list_kernels()
-        assert list_result['success'] is True
-        assert list_result['count'] == 1
-        assert "workflow-test" in list_result['kernels']
+        assert list_result.success is True
+        assert list_result.count == 1
+        assert "workflow-test" in list_result.kernels
         
         # 6. Clean up
         stop_result = stop_kernel("workflow-test")
-        assert stop_result['success'] is True
+        assert stop_result.success is True
 
 
 if __name__ == "__main__":

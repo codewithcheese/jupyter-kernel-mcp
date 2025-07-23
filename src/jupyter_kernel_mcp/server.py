@@ -8,16 +8,65 @@ import json
 import sys
 import typing as t
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Annotated, Literal, Optional
+from dataclasses import dataclass
 
 from jupyter_client import KernelManager
 from jupyter_client.kernelspec import KernelSpec
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 # Dictionary to store multiple kernels
 kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 'created_at': datetime}
 
 import uuid
+
+# Structured return types for better Claude Code display
+@dataclass
+class KernelInfo:
+    kernel_id: str
+    success: bool
+    message: str
+    timestamp: str
+    error: Optional[str] = None
+
+@dataclass
+class ExecutionResult:
+    success: bool
+    output: list[str]
+    result: Optional[str]
+    error: Optional[dict]
+    timestamp: str
+
+@dataclass
+class KernelStatus:
+    kernel_id: str
+    status: str
+    created_at: str
+    python_env: str
+    details: Optional[dict] = None
+
+@dataclass
+class KernelList:
+    success: bool
+    kernels: dict[str, dict]
+    count: int
+    timestamp: str
+
+@dataclass
+class VariableInfo:
+    name: str
+    type: str
+    repr: str
+    size: int
+
+@dataclass
+class VariableList:
+    success: bool
+    variables: dict[str, VariableInfo]
+    count: int
+    timestamp: str
+    kernel_id: str
 
 def validate_python_environment(python_path):
     """Validate that Python environment has required packages"""
@@ -166,114 +215,170 @@ def execute_code_in_kernel(code: str, kernel_id: str, timeout: int = 30) -> Dict
 # Create MCP server
 mcp = FastMCP("Jupyter Kernel Server")
 
-@mcp.tool()
-def start_kernel(python_env: str, kernel_id: str = None) -> dict:
+@mcp.tool(
+    annotations={
+        "title": "Start Jupyter Kernel",
+        "description": "Create a new persistent Jupyter kernel for code execution",
+        "destructiveHint": False,
+        "readOnlyHint": False,
+        "idempotentHint": False
+    }
+)
+def start_kernel(
+    python_env: Annotated[str, Field(
+        title="Python Executable Path",
+        description="Full path to Python executable (e.g., /usr/bin/python3 or use 'which python' to find current)",
+        examples=["/usr/bin/python3", "/opt/conda/bin/python", "python"]
+    )],
+    kernel_id: Annotated[Optional[str], Field(
+        title="Kernel ID", 
+        description="Custom kernel identifier (auto-generated if not provided)",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )] = None
+) -> KernelInfo:
     """
-    Start a new Jupyter kernel.
-    
-    Args:
-        kernel_id: Optional custom kernel ID. If not provided, generates a random ID.
-        python_env: Path to Python executable to use for the kernel
-                   
-                   To find the current Python executable, run:
-                   which python
-    
-    Returns:
-        Dictionary with kernel_id and creation info
+    Start a new Jupyter kernel with persistent state for code execution.
     """
     try:
         actual_id = create_kernel(python_env, kernel_id)
-        return {
-            'success': True,
-            'kernel_id': actual_id,
-            'message': f'Kernel {actual_id} started successfully',
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=actual_id,
+            success=True,
+            message=f'Kernel {actual_id} started successfully',
+            timestamp=datetime.now().isoformat()
+        )
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=kernel_id or "unknown",
+            success=False,
+            message="Failed to start kernel",
+            timestamp=datetime.now().isoformat(),
+            error=str(e)
+        )
 
-@mcp.tool()
-def stop_kernel(kernel_id: str) -> dict:
+@mcp.tool(
+    annotations={
+        "title": "Stop Kernel",
+        "description": "Permanently stop and remove a Jupyter kernel",
+        "destructiveHint": True,
+        "readOnlyHint": False,
+        "idempotentHint": True
+    }
+)
+def stop_kernel(
+    kernel_id: Annotated[str, Field(
+        title="Kernel ID",
+        description="ID of the kernel to stop (WARNING: This will permanently remove the kernel and all its state)",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )]
+) -> KernelInfo:
     """
-    Stop and remove a Jupyter kernel.
-    
-    Args:
-        kernel_id: ID of the kernel to stop
-    
-    Returns:
-        Dictionary indicating success/failure
+    Stop and permanently remove a Jupyter kernel and all its state.
     """
     try:
         shutdown_kernel(kernel_id)
-        return {
-            'success': True,
-            'message': f'Kernel {kernel_id} stopped successfully',
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=kernel_id,
+            success=True,
+            message=f'Kernel {kernel_id} stopped successfully',
+            timestamp=datetime.now().isoformat()
+        )
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=kernel_id,
+            success=False,
+            message="Failed to stop kernel",
+            timestamp=datetime.now().isoformat(),
+            error=str(e)
+        )
 
-@mcp.tool()
-def list_kernels() -> dict:
+@mcp.tool(
+    annotations={
+        "title": "List Active Kernels",
+        "description": "Show all currently running Jupyter kernels",
+        "readOnlyHint": True,
+        "idempotentHint": True
+    }
+)
+def list_kernels() -> KernelList:
     """
-    List all active kernels.
-    
-    Returns:
-        Dictionary with kernel information
+    List all currently active Jupyter kernels with their status information.
     """
     kernel_info = {}
     for kid, kdata in kernels.items():
         kernel_info[kid] = {
             'created_at': kdata['created_at'].isoformat(),
-            'status': 'running'
+            'status': 'running',
+            'python_env': kdata['python_env']
         }
     
-    return {
-        'success': True,
-        'kernels': kernel_info,
-        'count': len(kernels),
-        'timestamp': datetime.now().isoformat()
+    return KernelList(
+        success=True,
+        kernels=kernel_info,
+        count=len(kernels),
+        timestamp=datetime.now().isoformat()
+    )
+
+@mcp.tool(
+    annotations={
+        "title": "Execute Python Code",
+        "description": "Run Python code in a persistent kernel environment with maintained state",
+        "destructiveHint": False,
+        "readOnlyHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
     }
+)
+def execute_python(
+    code: Annotated[str, Field(
+        title="Python Code",
+        description="Python code to execute (variables persist between executions)",
+        format="code",
+        contentMediaType="text/x-python",
+        examples=["print('Hello, World!')", "import pandas as pd\ndf = pd.DataFrame({'a': [1, 2, 3]})"]
+    )],
+    kernel_id: Annotated[str, Field(
+        title="Kernel ID",
+        description="ID of the kernel to execute code in (use list_kernels to see available kernels)",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )],
+    timeout: Annotated[int, Field(
+        title="Timeout (seconds)",
+        description="Maximum execution time in seconds",
+        ge=1,
+        le=300,
+        default=30
+    )] = 30
+) -> ExecutionResult:
+    """
+    Execute Python code in a persistent Jupyter kernel with maintained state.
+    """
+    result = execute_code_in_kernel(code, kernel_id, timeout)
+    return ExecutionResult(
+        success=result['success'],
+        output=result['output'],
+        result=result['result'],
+        error=result['error'],
+        timestamp=result['timestamp']
+    )
 
-@mcp.tool()
-def execute_python(code: str, kernel_id: str, timeout: int = 30) -> dict:
+@mcp.tool(
+    annotations={
+        "title": "List Kernel Variables",
+        "description": "Inspect all variables currently defined in a kernel's namespace",
+        "readOnlyHint": True,
+        "idempotentHint": True
+    }
+)
+def list_variables(
+    kernel_id: Annotated[str, Field(
+        title="Kernel ID",
+        description="ID of the kernel to inspect variables from",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )]
+) -> VariableList:
     """
-    Execute Python code in a persistent Jupyter kernel.
-    Variables and state persist between executions.
-    
-    Args:
-        code: Python code to execute
-        kernel_id: ID of the kernel to execute code in
-        timeout: Execution timeout in seconds (default 30)
-    
-    Returns:
-        Dictionary with execution result:
-        - success: boolean indicating if execution succeeded
-        - output: list of stdout/stderr lines
-        - result: return value of the last expression (if any)
-        - error: error information if execution failed
-        - timestamp: when the execution occurred
-    """
-    return execute_code_in_kernel(code, kernel_id, timeout)
-
-@mcp.tool()
-def list_variables(kernel_id: str) -> dict:
-    """
-    List all variables currently defined in the kernel namespace.
-    
-    Args:
-        kernel_id: ID of the kernel to inspect
-    
-    Returns:
-        Dictionary with variable names, types, and string representations
+    List all variables currently defined in the specified kernel's namespace.
     """
     code = """
 import sys
@@ -297,19 +402,62 @@ for name, value in globals_snapshot.items():
             }
 namespace_vars
 """
-    return execute_code_in_kernel(code, kernel_id)
+    result = execute_code_in_kernel(code, kernel_id)
+    
+    if result['success'] and result['result']:
+        try:
+            vars_dict = eval(result['result'])
+            variables = {
+                name: VariableInfo(
+                    name=name,
+                    type=info['type'],
+                    repr=info['repr'],
+                    size=info['size']
+                )
+                for name, info in vars_dict.items()
+            }
+            return VariableList(
+                success=True,
+                variables=variables,
+                count=len(variables),
+                timestamp=datetime.now().isoformat(),
+                kernel_id=kernel_id
+            )
+        except Exception as e:
+            return VariableList(
+                success=False,
+                variables={},
+                count=0,
+                timestamp=datetime.now().isoformat(),
+                kernel_id=kernel_id
+            )
+    else:
+        return VariableList(
+            success=False,
+            variables={},
+            count=0,
+            timestamp=datetime.now().isoformat(),
+            kernel_id=kernel_id
+        )
 
-@mcp.tool()
-def reset_kernel(kernel_id: str) -> dict:
+@mcp.tool(
+    annotations={
+        "title": "Reset Kernel",
+        "description": "Reset a kernel by clearing all variables and state",
+        "destructiveHint": True,
+        "readOnlyHint": False,
+        "idempotentHint": True
+    }
+)
+def reset_kernel(
+    kernel_id: Annotated[str, Field(
+        title="Kernel ID",
+        description="ID of the kernel to reset (WARNING: This will clear all variables and state)",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )]
+) -> KernelInfo:
     """
-    Reset a Jupyter kernel by stopping and restarting it with the same ID.
-    This clears all variables and state.
-    
-    Args:
-        kernel_id: ID of the kernel to reset
-    
-    Returns:
-        Dictionary indicating the reset was successful
+    Reset a Jupyter kernel by clearing all variables and state while keeping the same ID.
     """
     try:
         # Get the original python_env before stopping the kernel
@@ -324,40 +472,64 @@ def reset_kernel(kernel_id: str) -> dict:
         # Start a new kernel with the same ID and original environment
         create_kernel(original_python_env if original_python_env != "default" else None, kernel_id)
         
-        return {
-            'success': True,
-            'message': f'Kernel {kernel_id} reset successfully',
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=kernel_id,
+            success=True,
+            message=f'Kernel {kernel_id} reset successfully',
+            timestamp=datetime.now().isoformat()
+        )
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
+        return KernelInfo(
+            kernel_id=kernel_id,
+            success=False,
+            message="Failed to reset kernel",
+            timestamp=datetime.now().isoformat(),
+            error=str(e)
+        )
 
-@mcp.tool()
-def get_kernel_status(kernel_id: str) -> dict:
+@mcp.tool(
+    annotations={
+        "title": "Get Kernel Status",
+        "description": "Get detailed status information about a specific kernel",
+        "readOnlyHint": True,
+        "idempotentHint": True
+    }
+)
+def get_kernel_status(
+    kernel_id: Annotated[str, Field(
+        title="Kernel ID",
+        description="ID of the kernel to check status for",
+        pattern="^[a-zA-Z0-9_-]+$"
+    )]
+) -> KernelStatus:
     """
-    Get status information about a specific Jupyter kernel.
-    
-    Args:
-        kernel_id: ID of the kernel to check
-    
-    Returns:
-        Dictionary with kernel status information
+    Get detailed status information about a specific Jupyter kernel.
     """
-    kc = get_kernel_client(kernel_id)
+    if kernel_id not in kernels:
+        return KernelStatus(
+            kernel_id=kernel_id,
+            status="not_found",
+            created_at="",
+            python_env="",
+            details={"error": f"Kernel {kernel_id} not found"}
+        )
+    
+    kernel_data = kernels[kernel_id]
     
     # Get basic info
     info_code = """
-import sys, psutil, os
+import sys, os
 from datetime import datetime
+try:
+    import psutil
+    memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
+except ImportError:
+    memory_mb = 0
 
 {
     'python_version': sys.version,
     'pid': os.getpid(),
-    'memory_usage_mb': psutil.Process().memory_info().rss / 1024 / 1024,
+    'memory_usage_mb': memory_mb,
     'uptime': 'kernel_running',
     'current_time': datetime.now().isoformat()
 }
@@ -366,11 +538,19 @@ from datetime import datetime
     try:
         result = execute_code_in_kernel(info_code, kernel_id)
         if result['success'] and result['result']:
-            return json.loads(result['result'].replace("'", '"'))
+            details = eval(result['result'])
         else:
-            return {'status': 'running', 'details': 'basic info unavailable'}
+            details = {'basic_info': 'unavailable'}
     except:
-        return {'status': 'running', 'details': 'status check failed'}
+        details = {'status_check': 'failed'}
+    
+    return KernelStatus(
+        kernel_id=kernel_id,
+        status="running",
+        created_at=kernel_data['created_at'].isoformat(),
+        python_env=kernel_data['python_env'],
+        details=details
+    )
 
 @mcp.resource("kernel://variables/{kernel_id}")
 def get_variables_resource(kernel_id: str) -> str:
