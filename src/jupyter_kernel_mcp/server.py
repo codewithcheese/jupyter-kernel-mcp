@@ -19,6 +19,33 @@ kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 
 
 import uuid
 
+def validate_python_environment(python_path):
+    """Validate that Python environment has required packages"""
+    import subprocess
+    
+    try:
+        # Check if ipykernel is available
+        result = subprocess.run(
+            [python_path, "-c", "import ipykernel"],
+            capture_output=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            raise ValueError(
+                f"ipykernel not found in Python environment: {python_path}\n"
+                f"Please install ipykernel in your Python environment. Examples:\n"
+                f"  pip install ipykernel\n"
+                f"  conda install ipykernel\n"
+                f"  poetry add ipykernel\n"
+                f"  uv add ipykernel"
+            )
+            
+    except subprocess.TimeoutExpired:
+        raise ValueError(f"Timeout checking Python environment: {python_path}")
+    except FileNotFoundError:
+        raise ValueError(f"Python executable not found: {python_path}")
+
 def create_kernel(python_env, kernel_id=None):
     """Create a new Jupyter kernel"""
     import os
@@ -31,11 +58,14 @@ def create_kernel(python_env, kernel_id=None):
     
     print(f"Starting Jupyter kernel {kernel_id} with Python: {python_env}")
     
-    # Validate python_env
+    # Validate python_env exists and is executable
     if not os.path.exists(python_env):
         raise ValueError(f"Python executable not found: {python_env}")
     if not os.access(python_env, os.X_OK):
         raise ValueError(f"Python executable not executable: {python_env}")
+    
+    # Validate python_env has required packages
+    validate_python_environment(python_env)
     
     class CustomKernelManager(KernelManager):
         """Custom KernelManager that preserves specified Python executable"""
