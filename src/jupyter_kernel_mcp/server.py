@@ -17,9 +17,11 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 # Dictionary to store multiple kernels
-kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 'created_at': datetime}
+kernels = {}  # kernel_id -> {'manager': KernelManager, 'client': KernelClient, 'created_at': datetime, 'language': str, 'env_path': str}
 
 import uuid
+import subprocess
+import os
 
 # Structured return types for better Claude Code display
 @dataclass
@@ -43,7 +45,8 @@ class KernelStatus:
     kernel_id: str
     status: str
     created_at: str
-    python_env: str
+    language: str
+    env_path: str
     details: Optional[dict] = None
 
 @dataclass
@@ -70,8 +73,6 @@ class VariableList:
 
 def validate_python_environment(python_path):
     """Validate that Python environment has required packages"""
-    import subprocess
-    
     try:
         # Check if ipykernel is available
         result = subprocess.run(
@@ -95,27 +96,124 @@ def validate_python_environment(python_path):
     except FileNotFoundError:
         raise ValueError(f"Python executable not found: {python_path}")
 
-def create_kernel(python_env, kernel_id=None):
-    """Create a new Jupyter kernel"""
-    import os
-    
+def validate_node_environment(node_path):
+    """Validate that Node.js environment has TSLAB installed"""
+    try:
+        # Check Node.js version
+        result = subprocess.run(
+            [node_path, "--version"],
+            capture_output=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            raise ValueError(f"Node.js executable not working: {node_path}")
+            
+        # Check if tslab is available globally
+        result = subprocess.run(
+            ["tslab", "install", "--version"],
+            capture_output=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            raise ValueError(
+                f"tslab not found or not properly installed\n"
+                f"Please install tslab globally. Examples:\n"
+                f"  npm install -g tslab\n"
+                f"  tslab install\n"
+                f"Then verify with: jupyter kernelspec list"
+            )
+        
+        # Check if tslab kernelspecs are installed
+        result = subprocess.run(
+            ["jupyter", "kernelspec", "list", "--json"],
+            capture_output=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            import json
+            kernelspecs = json.loads(result.stdout.decode())
+            available_kernels = kernelspecs.get('kernelspecs', {}).keys()
+            if 'tslab' not in available_kernels:
+                raise ValueError(
+                    f"tslab kernel not found in Jupyter kernelspecs\n"
+                    f"Please run: tslab install\n"
+                    f"Available kernels: {list(available_kernels)}"
+                )
+            
+    except subprocess.TimeoutExpired:
+        raise ValueError(f"Timeout checking Node.js environment: {node_path}")
+    except FileNotFoundError as e:
+        if "tslab" in str(e):
+            raise ValueError(
+                f"tslab command not found\n"
+                f"Please install tslab globally: npm install -g tslab"
+            )
+        elif "jupyter" in str(e):
+            raise ValueError(
+                f"jupyter command not found\n"
+                f"Please install Jupyter: pip install jupyter"
+            )
+        else:
+            raise ValueError(f"Node.js executable not found: {node_path}")
+
+def validate_environment(language, env_path):
+    """Validate environment based on language type"""
+    if language == "python":
+        validate_python_environment(env_path)
+    elif language in ["typescript", "javascript"]:
+        validate_node_environment(env_path)
+    else:
+        raise ValueError(f"Unsupported language: {language}")
+
+def create_kernel(language, env_path, kernel_id=None):
+    """Create a new Jupyter kernel for the specified language"""
     if kernel_id is None:
         kernel_id = str(uuid.uuid4())[:8]  # Short ID
     
     if kernel_id in kernels:
         raise ValueError(f"Kernel {kernel_id} already exists")
     
-    print(f"Starting Jupyter kernel {kernel_id} with Python: {python_env}")
+    print(f"Starting {language} kernel {kernel_id} with environment: {env_path}")
     
-    # Validate python_env exists and is executable
-    if not os.path.exists(python_env):
-        raise ValueError(f"Python executable not found: {python_env}")
-    if not os.access(python_env, os.X_OK):
-        raise ValueError(f"Python executable not executable: {python_env}")
+    # Validate environment exists and is executable
+    if not os.path.exists(env_path):
+        raise ValueError(f"Executable not found: {env_path}")
+    if not os.access(env_path, os.X_OK):
+        raise ValueError(f"Executable not executable: {env_path}")
     
-    # Validate python_env has required packages
-    validate_python_environment(python_env)
+    # Validate environment has required packages
+    validate_environment(language, env_path)
     
+    if language == "python":
+        km = create_python_kernel(env_path)
+    elif language == "typescript":
+        km = create_tslab_kernel("tslab")
+    elif language == "javascript":
+        km = create_tslab_kernel("jslab")
+    else:
+        raise ValueError(f"Unsupported language: {language}")
+    
+    # Start kernel and get client
+    km.start_kernel()
+    kc = km.client()
+    kc.wait_for_ready()
+    
+    kernels[kernel_id] = {
+        'manager': km,
+        'client': kc, 
+        'created_at': datetime.now(),
+        'language': language,
+        'env_path': env_path
+    }
+    
+    print(f"{language.title()} kernel {kernel_id} ready!")
+    return kernel_id
+
+def create_python_kernel(python_env):
+    """Create a Python kernel with custom environment"""
     class CustomKernelManager(KernelManager):
         """Custom KernelManager that preserves specified Python executable"""
         
@@ -132,23 +230,11 @@ def create_kernel(python_env, kernel_id=None):
                 cmd[0] = self.custom_python_path
             return cmd
     
-    # Create custom KernelManager with our Python path
-    km = CustomKernelManager(custom_python_path=python_env)
-    
-    # Start kernel
-    km.start_kernel()
-    kc = km.client()
-    kc.wait_for_ready()
-    
-    kernels[kernel_id] = {
-        'manager': km,
-        'client': kc, 
-        'created_at': datetime.now(),
-        'python_env': python_env
-    }
-    
-    print(f"Jupyter kernel {kernel_id} ready!")
-    return kernel_id
+    return CustomKernelManager(custom_python_path=python_env)
+
+def create_tslab_kernel(kernel_name):
+    """Create a TSLAB kernel (tslab or jslab)"""
+    return KernelManager(kernel_name=kernel_name)
 
 def get_kernel_client(kernel_id):
     """Get kernel client by ID"""
@@ -218,33 +304,51 @@ mcp = FastMCP("Jupyter Kernel Server")
 @mcp.tool(
     annotations={
         "title": "Start Jupyter Kernel",
-        "description": "Create a new persistent Jupyter kernel for code execution",
+        "description": "Create a new persistent Jupyter kernel for code execution in Python, TypeScript, or JavaScript",
         "destructiveHint": False,
         "readOnlyHint": False,
         "idempotentHint": False
     }
 )
 def start_kernel(
-    python_env: Annotated[str, Field(
-        title="Python Executable Path",
-        description="Full path to Python executable (e.g., /usr/bin/python3 or use 'which python' to find current)",
-        examples=["/usr/bin/python3", "/opt/conda/bin/python", "python"]
+    env_path: Annotated[str, Field(
+        title="Environment Path",
+        description="Full path to language runtime executable (e.g., /usr/bin/python3, /usr/bin/node)",
+        examples=["/usr/bin/python3", "/usr/bin/node", "python", "node"]
     )],
+    language: Annotated[Optional[Literal["python", "typescript", "javascript"]], Field(
+        title="Programming Language",
+        description="Programming language for the kernel (python, typescript, or javascript). Defaults to python for backward compatibility.",
+        default="python"
+    )] = "python",
     kernel_id: Annotated[Optional[str], Field(
         title="Kernel ID", 
         description="Custom kernel identifier (auto-generated if not provided)",
         pattern="^[a-zA-Z0-9_-]+$"
+    )] = None,
+    python_env: Annotated[Optional[str], Field(
+        title="Python Executable Path (deprecated)",
+        description="DEPRECATED: Use env_path instead. Full path to Python executable for backward compatibility.",
+        examples=["/usr/bin/python3", "/opt/conda/bin/python", "python"]
     )] = None
 ) -> KernelInfo:
     """
     Start a new Jupyter kernel with persistent state for code execution.
     """
     try:
-        actual_id = create_kernel(python_env, kernel_id)
+        # Handle backward compatibility
+        if python_env is not None:
+            actual_env_path = python_env
+            actual_language = "python"
+        else:
+            actual_env_path = env_path
+            actual_language = language
+        
+        actual_id = create_kernel(actual_language, actual_env_path, kernel_id)
         return KernelInfo(
             kernel_id=actual_id,
             success=True,
-            message=f'Kernel {actual_id} started successfully',
+            message=f'{actual_language.title()} kernel {actual_id} started successfully',
             timestamp=datetime.now().isoformat()
         )
     except Exception as e:
@@ -309,7 +413,8 @@ def list_kernels() -> KernelList:
         kernel_info[kid] = {
             'created_at': kdata['created_at'].isoformat(),
             'status': 'running',
-            'python_env': kdata['python_env']
+            'language': kdata['language'],
+            'env_path': kdata['env_path']
         }
     
     return KernelList(
@@ -329,7 +434,7 @@ def list_kernels() -> KernelList:
         "openWorldHint": True
     }
 )
-def execute_python(
+def execute_code(
     code: Annotated[str, Field(
         title="Python Code",
         description="Python code to execute (variables persist between executions)",
@@ -460,17 +565,18 @@ def reset_kernel(
     Reset a Jupyter kernel by clearing all variables and state while keeping the same ID.
     """
     try:
-        # Get the original python_env before stopping the kernel
+        # Get the original environment before stopping the kernel
         if kernel_id not in kernels:
             raise ValueError(f"Kernel {kernel_id} not found")
         
-        original_python_env = kernels[kernel_id]['python_env']
+        original_language = kernels[kernel_id]['language']
+        original_env_path = kernels[kernel_id]['env_path']
         
         # Stop the existing kernel
         shutdown_kernel(kernel_id)
         
         # Start a new kernel with the same ID and original environment
-        create_kernel(original_python_env if original_python_env != "default" else None, kernel_id)
+        create_kernel(original_language, original_env_path, kernel_id)
         
         return KernelInfo(
             kernel_id=kernel_id,
@@ -510,14 +616,17 @@ def get_kernel_status(
             kernel_id=kernel_id,
             status="not_found",
             created_at="",
-            python_env="",
+            language="",
+            env_path="",
             details={"error": f"Kernel {kernel_id} not found"}
         )
     
     kernel_data = kernels[kernel_id]
     
-    # Get basic info
-    info_code = """
+    # Get basic info based on kernel language
+    language = kernel_data['language']
+    if language == 'python':
+        info_code = """
 import sys, os
 from datetime import datetime
 try:
@@ -527,12 +636,25 @@ except ImportError:
     memory_mb = 0
 
 {
-    'python_version': sys.version,
+    'runtime_version': sys.version,
     'pid': os.getpid(),
     'memory_usage_mb': memory_mb,
     'uptime': 'kernel_running',
     'current_time': datetime.now().isoformat()
 }
+"""
+    else:  # TypeScript/JavaScript
+        info_code = """
+const os = require('os');
+const process = require('process');
+
+({
+    runtime_version: process.version,
+    pid: process.pid,
+    memory_usage_mb: process.memoryUsage().rss / 1024 / 1024,
+    uptime: 'kernel_running',
+    current_time: new Date().toISOString()
+})
 """
     
     try:
@@ -548,7 +670,8 @@ except ImportError:
         kernel_id=kernel_id,
         status="running",
         created_at=kernel_data['created_at'].isoformat(),
-        python_env=kernel_data['python_env'],
+        language=kernel_data['language'],
+        env_path=kernel_data['env_path'],
         details=details
     )
 

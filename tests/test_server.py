@@ -41,11 +41,12 @@ class TestKernelManagement:
         """Test creating a kernel with current Python executable"""
         python_path = sys.executable
         
-        kernel_id = create_kernel(python_path, "test-kernel")
+        kernel_id = create_kernel("python", python_path, "test-kernel")
         
         assert kernel_id == "test-kernel"
         assert kernel_id in kernels
-        assert kernels[kernel_id]['python_env'] == python_path
+        assert kernels[kernel_id]['language'] == "python"
+        assert kernels[kernel_id]['env_path'] == python_path
         
         # Clean up
         shutdown_kernel(kernel_id)
@@ -54,14 +55,14 @@ class TestKernelManagement:
         """Test creating a kernel with non-existent Python executable"""
         invalid_path = "/path/to/nonexistent/python"
         
-        with pytest.raises(ValueError, match="Python executable not found"):
-            create_kernel(invalid_path, "test-kernel")
+        with pytest.raises(ValueError, match="Executable not found"):
+            create_kernel("python", invalid_path, "test-kernel")
     
     def test_kernel_creation_auto_id(self):
         """Test creating a kernel with auto-generated ID"""
         python_path = sys.executable
         
-        kernel_id = create_kernel(python_path)
+        kernel_id = create_kernel("python", python_path)
         
         assert kernel_id is not None
         assert len(kernel_id) == 8  # UUID short form
@@ -74,10 +75,10 @@ class TestKernelManagement:
         """Test that duplicate kernel IDs are rejected"""
         python_path = sys.executable
         
-        kernel_id = create_kernel(python_path, "test-kernel")
+        kernel_id = create_kernel("python", python_path, "test-kernel")
         
         with pytest.raises(ValueError, match="already exists"):
-            create_kernel(python_path, "test-kernel")
+            create_kernel("python", python_path, "test-kernel")
         
         # Clean up
         shutdown_kernel(kernel_id)
@@ -85,7 +86,7 @@ class TestKernelManagement:
     def test_kernel_shutdown(self):
         """Test shutting down a kernel"""
         python_path = sys.executable
-        kernel_id = create_kernel(python_path, "test-kernel")
+        kernel_id = create_kernel("python", python_path, "test-kernel")
         
         shutdown_kernel(kernel_id)
         
@@ -113,7 +114,7 @@ class TestCodeExecution:
         
         # Create test kernel
         python_path = sys.executable
-        self.kernel_id = create_kernel(python_path, "test-kernel")
+        self.kernel_id = create_kernel("python", python_path, "test-kernel")
     
     def teardown_method(self):
         """Clean up test kernel"""
@@ -238,13 +239,13 @@ class TestEnvironmentHandling:
         python_path = sys.executable
         
         # Should not raise an exception
-        kernel_id = create_kernel(python_path, "env-test")
+        kernel_id = create_kernel("python", python_path, "env-test")
         shutdown_kernel(kernel_id)
     
     def test_invalid_python_path_detection(self):
         """Test detection of invalid Python path"""
         with pytest.raises(ValueError, match="not found"):
-            create_kernel("/nonexistent/python", "env-test")
+            create_kernel("python", "/nonexistent/python", "env-test")
     
     def test_non_executable_python_path(self, temp_python_env):
         """Test detection of non-executable Python path"""
@@ -252,11 +253,11 @@ class TestEnvironmentHandling:
         os.chmod(temp_python_env, 0o644)
         
         with pytest.raises(ValueError, match="not executable"):
-            create_kernel(temp_python_env, "env-test")
+            create_kernel("python", temp_python_env, "env-test")
     
     def test_kernel_uses_specific_python_env(self, real_python_env):
         """Test that kernel actually uses a specific Python environment"""
-        kernel_id = create_kernel(real_python_env, "env-verify-test")
+        kernel_id = create_kernel("python", real_python_env, "env-verify-test")
         
         # Execute code to check which Python the kernel is actually using
         check_code = """

@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Model Context Protocol (MCP) server that provides stateful Jupyter kernel development with multi-kernel support for AI agents and assistants.
+A Model Context Protocol (MCP) server that provides stateful Jupyter kernel development with multi-language support (Python, TypeScript, JavaScript) for AI agents and assistants.
 
 ## Table of contents
 
@@ -20,7 +20,7 @@ A Model Context Protocol (MCP) server that provides stateful Jupyter kernel deve
 
 ## Project description
 
-With _Jupyter Kernel MCP_ you can execute Python code in persistent, isolated environments that maintain state between executions—perfect for AI agents performing complex data analysis workflows.
+With _Jupyter Kernel MCP_ you can execute **Python, TypeScript, and JavaScript** code in persistent, isolated environments that maintain state between executions—perfect for AI agents performing complex data analysis and development workflows.
 
 _Jupyter Kernel MCP_ helps you build stateful AI agent workflows that can load datasets, perform transformations, and analyze results across multiple interactions without losing variables or computed state.
 
@@ -29,11 +29,13 @@ Unlike traditional stateless code execution, _Jupyter Kernel MCP_ preserves vari
 ### Key Features
 
 - **🔄 Persistent State**: Variables and imports persist between code executions
+- **🌐 Multi-Language Support**: Python, TypeScript, and JavaScript kernels
 - **🚀 Multi-Kernel Support**: Create and manage multiple isolated kernel environments  
 - **🤖 AI-Agent Ready**: Seamless integration with Claude Code and other MCP clients
 - **📊 Data Science Workflows**: Perfect for iterative data analysis and exploration
 - **⚡ Fast Communication**: Direct socket-based communication with Jupyter kernels
 - **🛠 Easy Management**: Simple kernel lifecycle management (start, stop, reset, list)
+- **🔗 Unified API**: Single interface for all languages - no separate tools needed
 
 ## Who this project is for
 
@@ -44,6 +46,8 @@ Perfect for:
 - Creating persistent computational environments for LLMs
 - Developing stateful data science workflows with AI assistants
 - Prototyping and exploring APIs with maintained context
+- Full-stack development with TypeScript/JavaScript and Python
+- Educational environments teaching multiple programming languages
 
 ## Project dependencies
 
@@ -52,6 +56,8 @@ Before using Jupyter Kernel MCP, ensure you have:
 * **Python 3.10 or higher** - Required for MCP SDK compatibility
 * **Claude Code, Cline, or another MCP client** - To interact with the server
 * **Jupyter dependencies** - Automatically installed with the package
+* **Node.js (for TypeScript/JavaScript)** - Required for TSLAB kernels (optional)
+* **TSLAB** - TypeScript/JavaScript kernel support (optional)
 
 ## Instructions for using Jupyter Kernel MCP
 
@@ -86,6 +92,25 @@ uv tool install git+https://github.com/codewithcheese/jupyter-kernel-mcp.git
 ```bash
 jupyter-kernel-mcp --help
 ```
+
+#### Optional: Install TSLAB for TypeScript/JavaScript Support
+
+To enable TypeScript and JavaScript kernels:
+
+```bash
+# Install TSLAB globally
+npm install -g tslab
+# or with pnpm
+pnpm install -g tslab
+
+# Install kernel specs
+tslab install
+
+# Verify kernels are available
+jupyter kernelspec list
+```
+
+You should see `tslab` and `jslab` in the kernel list.
 
 ### Configure with Claude Code
 
@@ -150,9 +175,9 @@ jupyter-kernel-mcp --help
 
 | Tool | Description |
 |------|-------------|
-| `start_kernel` | Create a new Jupyter kernel (with optional custom ID) |
-| `execute_python` | Execute Python code in a specific kernel |
-| `list_kernels` | Show all active kernels |
+| `start_kernel` | Create a new Jupyter kernel for Python, TypeScript, or JavaScript |
+| `execute_code` | Execute code in any language kernel (auto-routes based on kernel type) |
+| `list_kernels` | Show all active kernels with their languages |
 | `list_variables` | Display variables in a kernel's namespace |
 | `get_kernel_status` | Get detailed kernel information |
 | `stop_kernel` | Stop and remove a specific kernel |
@@ -180,6 +205,18 @@ jupyter-kernel-mcp --help
   <tr>
    <td>Variables not persisting between executions</td>
    <td>Ensure you're using the same kernel_id for related executions</td>
+  </tr>
+  <tr>
+   <td>TypeScript/JavaScript kernel creation fails</td>
+   <td>Install TSLAB: <code>npm install -g tslab && tslab install</code></td>
+  </tr>
+  <tr>
+   <td>"tslab command not found" error</td>
+   <td>Ensure Node.js is installed and TSLAB is in PATH</td>
+  </tr>
+  <tr>
+   <td>TypeScript compilation errors</td>
+   <td>Check TypeScript syntax - TSLAB uses strict type checking</td>
   </tr>
 </table>
 

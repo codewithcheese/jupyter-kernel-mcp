@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "mcp__jupyter-kernel__execute_code"
+    ],
+    "deny": []
+  }
+}
